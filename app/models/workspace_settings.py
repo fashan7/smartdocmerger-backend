@@ -21,10 +21,11 @@ class WorkspaceSettings(Base):
     anthropic_key_valid: Mapped[bool] = mapped_column(Boolean, nullable=True)
     openai_key_valid: Mapped[bool] = mapped_column(Boolean, nullable=True)
 
-    selected_model: Mapped[str] = mapped_column(String(100), default="claude-sonnet-4-20250514")
+    selected_model: Mapped[str] = mapped_column(String(100), default="claude-sonnet-4-5")
     similarity_threshold: Mapped[float] = mapped_column(Float, default=0.75)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     user: Mapped["User"] = relationship("User", back_populates="workspace_settings")  # noqa
+    

@@ -264,10 +264,22 @@ async def reprocess_document(
 @router.get("/{document_id}/stream")
 async def stream_progress(
     document_id: str,
+    token: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
 ):
-    """SSE endpoint — polls document status every second and streams to frontend."""
+    """SSE endpoint — accepts token as query param since EventSource cannot set headers."""
+    from app.core.security import decode_access_token
+    from fastapi.responses import JSONResponse as _JSONResponse
+    from sqlalchemy import select as _sa_select
+
+    user_id = decode_access_token(token or "")
+    if not user_id:
+        return _JSONResponse({"detail": "Not authenticated"}, status_code=403)
+
+    _ur = await db.execute(_sa_select(User).where(User.id == user_id))
+    current_user = _ur.scalar_one_or_none()
+    if not current_user or not current_user.is_active:
+        return _JSONResponse({"detail": "Not authenticated"}, status_code=403)
 
     async def event_generator():
         step_order = ["uploading", "chunking", "extracting", "detecting", "done", "failed"]

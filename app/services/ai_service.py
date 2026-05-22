@@ -2,6 +2,14 @@ import json
 import anthropic
 from app.config import settings
 
+# Valid models — frontend dropdown should match these
+AVAILABLE_MODELS = [
+    "claude-sonnet-4-5",
+    "claude-opus-4-5",
+    "claude-haiku-4-5",
+]
+DEFAULT_MODEL = "claude-sonnet-4-5"
+
 
 def get_client(api_key: str | None = None) -> anthropic.Anthropic:
     key = api_key or settings.ANTHROPIC_API_KEY
@@ -10,16 +18,39 @@ def get_client(api_key: str | None = None) -> anthropic.Anthropic:
     return anthropic.Anthropic(api_key=key)
 
 
+def resolve_model(model: str | None) -> str:
+    """
+    Resolve the model name from user settings.
+    Falls back to DEFAULT_MODEL if None or unrecognised.
+    Normalises common aliases so the DB value always works.
+    """
+    if not model:
+        return DEFAULT_MODEL
+
+    # Normalise aliases users might have stored
+    aliases = {
+        "claude-sonnet-4-20250514": "claude-sonnet-4-5",
+        "claude-opus-4-20250514":   "claude-opus-4-5",
+        "claude-haiku-4-5-20251001": "claude-haiku-4-5",
+        "claude-sonnet-4.5":        "claude-sonnet-4-5",
+        "claude-opus-4.5":          "claude-opus-4-5",
+        "claude-haiku-4.5":         "claude-haiku-4-5",
+    }
+    return aliases.get(model, model)
+
+
 async def extract_ideas_from_chunks(
     chunks: list[dict],
     project_context: str = "",
     api_key: str | None = None,
+    model: str | None = None,
 ) -> list[dict]:
     """
     Takes document chunks, returns list of extracted ideas.
     Each idea: {summary, full_text, section_title, section_index}
     """
     client = get_client(api_key)
+    selected_model = resolve_model(model)
 
     context_block = f"\nProject context: {project_context}\n" if project_context else ""
 
@@ -47,13 +78,12 @@ Return ONLY a JSON array. No preamble. No markdown. Example format:
 ]"""
 
     response = client.messages.create(
-        model="claude-sonnet-4-20250514",
+        model=selected_model,
         max_tokens=4096,
         messages=[{"role": "user", "content": prompt}]
     )
 
     raw = response.content[0].text.strip()
-    # Strip markdown fences if present
     raw = raw.replace("```json", "").replace("```", "").strip()
 
     try:
@@ -69,12 +99,14 @@ async def verify_similarity_pair(
     idea_a: str,
     idea_b: str,
     api_key: str | None = None,
+    model: str | None = None,
 ) -> dict:
     """
     Claude verifies whether two ideas flagged by TF-IDF are truly duplicates.
     Returns: {wording_match, concept_match, recommendation, reason, confidence}
     """
     client = get_client(api_key)
+    selected_model = resolve_model(model)
 
     prompt = f"""Compare these two ideas and determine if they are duplicates.
 
@@ -95,12 +127,12 @@ Return ONLY a JSON object. No preamble. No markdown:
 
 Rules:
 - keep_a: A is clearer/more complete, discard B
-- keep_b: B is clearer/more complete, discard A  
+- keep_b: B is clearer/more complete, discard A
 - merge: both have unique value, combine them
 - keep_both: they are actually different ideas despite surface similarity"""
 
     response = client.messages.create(
-        model="claude-sonnet-4-20250514",
+        model=selected_model,
         max_tokens=300,
         messages=[{"role": "user", "content": prompt}]
     )
@@ -132,7 +164,7 @@ async def validate_api_key(api_key: str) -> bool:
     try:
         client = anthropic.Anthropic(api_key=api_key)
         client.messages.create(
-            model="claude-haiku-4-5-20251001",
+            model="claude-haiku-4-5",
             max_tokens=10,
             messages=[{"role": "user", "content": "Hi"}]
         )
@@ -145,9 +177,11 @@ async def merge_two_ideas(
     idea_a: str,
     idea_b: str,
     api_key: str | None = None,
+    model: str | None = None,
 ) -> str:
     """Merge two ideas into one clean paragraph."""
     client = get_client(api_key)
+    selected_model = resolve_model(model)
 
     prompt = f"""Merge these two similar ideas into one clear, concise paragraph.
 Remove repetition. Keep all unique points. Be direct and concise.
@@ -161,7 +195,7 @@ Idea B:
 Return only the merged paragraph. No preamble."""
 
     response = client.messages.create(
-        model="claude-sonnet-4-20250514",
+        model=selected_model,
         max_tokens=500,
         messages=[{"role": "user", "content": prompt}]
     )

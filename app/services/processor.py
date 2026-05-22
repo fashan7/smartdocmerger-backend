@@ -93,7 +93,7 @@ async def _run_pipeline(db: AsyncSession, document_id: str, user_id: str):
 
     # --- Step 2: Extract ideas ---
     await _set_step(db, document_id, "extracting")
-    raw_ideas = await extract_ideas_from_chunks(chunks_data, project_context, api_key)
+    raw_ideas = await extract_ideas_from_chunks(chunks_data, project_context, api_key, model=workspace.selected_model if workspace else None)
 
     if not raw_ideas:
         await db.execute(
@@ -173,6 +173,7 @@ async def _run_pipeline(db: AsyncSession, document_id: str, user_id: str):
             idea_a_obj.full_text,
             idea_b_obj.full_text,
             api_key,
+            model=workspace.selected_model if workspace else None,
         )
 
         # Only create pair if Claude also agrees they're similar

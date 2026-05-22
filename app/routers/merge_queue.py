@@ -137,7 +137,7 @@ async def merge_pair(
     api_key = ws.anthropic_api_key if ws else None
 
     # AI merges the text
-    merged_text = await merge_two_ideas(idea_a.full_text, idea_b.full_text, api_key)
+    merged_text = await merge_two_ideas(idea_a.full_text, idea_b.full_text, api_key, model=ws.selected_model if ws else None)
 
     # Update idea_a with merged content, mark idea_b as merged/removed
     keep_which = body.get("keep", "a")  # "a", "b", or "merge"
